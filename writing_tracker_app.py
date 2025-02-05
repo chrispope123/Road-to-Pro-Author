@@ -8,11 +8,13 @@ import os
 # Ensure necessary dependencies are installed
 try:
     import nltk
-    from nltk.corpus import wordnet
+    from nltk.tokenize import word_tokenize
+    from nltk import pos_tag
 except ModuleNotFoundError:
     os.system("pip install nltk")
     import nltk
-    from nltk.corpus import wordnet
+    from nltk.tokenize import word_tokenize
+    from nltk import pos_tag
 
 # Initialize session state
 if 'writing_data' not in st.session_state:
@@ -23,6 +25,20 @@ if 'calendar_events' not in st.session_state:
     st.session_state.calendar_events = []
 if 'writing_text' not in st.session_state:
     st.session_state.writing_text = ""
+if 'tracking_stats' not in st.session_state:
+    st.session_state.tracking_stats = {
+        'total_verbs': 0, 'current_verbs': 0, 'verbs_changed': 0,
+        'total_nouns': 0, 'current_nouns': 0, 'nouns_changed': 0,
+        'total_adjectives': 0, 'current_adjectives': 0, 'adjectives_changed': 0,
+        'total_adverbs': 0, 'current_adverbs': 0, 'adverbs_changed': 0
+    }
+if 'time_stats' not in st.session_state:
+    st.session_state.time_stats = {
+        'total_hours': 0,
+        'daily_hours': {},
+        'total_sessions': 0,
+        'daily_sessions': {}
+    }
 
 # App title
 st.title("Writing Progress Tracker")
@@ -40,8 +56,52 @@ writing_text = st.text_area(
     placeholder="Start writing here..."
 )
 
-# Update session state when writing text is changed
+# Function to update part-of-speech statistics
+def update_pos_statistics(new_text, old_text):
+    new_tokens = word_tokenize(new_text)
+    old_tokens = word_tokenize(old_text)
+
+    new_pos = pos_tag(new_tokens)
+    old_pos = pos_tag(old_tokens)
+
+    pos_categories = {
+        'VB': 'verbs', 'NN': 'nouns', 'JJ': 'adjectives', 'RB': 'adverbs'
+    }
+
+    # Count POS changes
+    for new_word, new_tag in new_pos:
+        if any(new_tag.startswith(key) for key in pos_categories):
+            category = pos_categories[new_tag[:2]]
+            st.session_state.tracking_stats[f'total_{category}'] += 1
+            st.session_state.tracking_stats[f'current_{category}'] += 1
+
+    for old_word, old_tag in old_pos:
+        if any(old_tag.startswith(key) for key in pos_categories):
+            category = pos_categories[old_tag[:2]]
+            st.session_state.tracking_stats[f'current_{category}'] -= 1
+
+    # Detect changes (e.g., stronger word replacement)
+    for new, old in zip(new_pos, old_pos):
+        if new[0] != old[0] and new[1].startswith(old[1][:2]):
+            category = pos_categories[old[1][:2]]
+            st.session_state.tracking_stats[f'{category}_changed'] += 1
+
+# Update time statistics
+def update_time_statistics(minutes_spent):
+    current_date = str(date)
+    st.session_state.time_stats['total_hours'] += minutes_spent / 60
+    st.session_state.time_stats['total_sessions'] += 1
+
+    if current_date not in st.session_state.time_stats['daily_hours']:
+        st.session_state.time_stats['daily_hours'][current_date] = 0
+        st.session_state.time_stats['daily_sessions'][current_date] = 0
+
+    st.session_state.time_stats['daily_hours'][current_date] += minutes_spent / 60
+    st.session_state.time_stats['daily_sessions'][current_date] += 1
+
+# Update statistics when the text changes
 if writing_text != st.session_state.writing_text:
+    update_pos_statistics(writing_text, st.session_state.writing_text)
     st.session_state.writing_text = writing_text
 
 # Calculate writing statistics
@@ -50,21 +110,9 @@ sentences_written = writing_text.count('.') + writing_text.count('!') + writing_
 pages_written = words_written / 250  # Assuming 250 words per page
 paragraphs_written = writing_text.count('\n')
 time_spent = st.sidebar.number_input("Time Spent Writing (Minutes)", min_value=0, value=0, step=5)
-nouns = st.sidebar.number_input("Nouns Used", min_value=0, value=0, step=1)
-nouns_edited = st.sidebar.number_input("Nouns Improved", min_value=0, value=0, step=1)
-verbs = st.sidebar.number_input("Verbs Used", min_value=0, value=0, step=1)
-verbs_edited = st.sidebar.number_input("Verbs Improved", min_value=0, value=0, step=1)
-adjectives = st.sidebar.number_input("Adjectives Used", min_value=0, value=0, step=1)
-adverbs = st.sidebar.number_input("Adverbs Used", min_value=0, value=0, step=1)
-pronouns = st.sidebar.number_input("Pronouns Used", min_value=0, value=0, step=1)
-prepositions = st.sidebar.number_input("Prepositions Used", min_value=0, value=0, step=1)
-conjunctions = st.sidebar.number_input("Conjunctions Used", min_value=0, value=0, step=1)
-interjections = st.sidebar.number_input("Interjections Used", min_value=0, value=0, step=1)
-sight = st.sidebar.number_input("Sight Descriptions", min_value=0, value=0, step=1)
-smell = st.sidebar.number_input("Smell Descriptions", min_value=0, value=0, step=1)
-taste = st.sidebar.number_input("Taste Descriptions", min_value=0, value=0, step=1)
-hearing = st.sidebar.number_input("Hearing Descriptions", min_value=0, value=0, step=1)
-touch = st.sidebar.number_input("Touch Descriptions", min_value=0, value=0, step=1)
+
+if time_spent > 0:
+    update_time_statistics(time_spent)
 
 # Writing Calendar
 st.sidebar.header("Writing Calendar")
@@ -116,22 +164,8 @@ if st.sidebar.button("Save Entry"):
         "Sentences": sentences_written,
         "Pages": pages_written,
         "Paragraphs": paragraphs_written,
-        "Time Spent (Minutes)": time_spent,
-        "Nouns": nouns,
-        "Nouns Improved": nouns_edited,
-        "Verbs": verbs,
-        "Verbs Improved": verbs_edited,
-        "Adjectives": adjectives,
-        "Adverbs": adverbs,
-        "Pronouns": pronouns,
-        "Prepositions": prepositions,
-        "Conjunctions": conjunctions,
-        "Interjections": interjections,
-        "Sight Descriptions": sight,
-        "Smell Descriptions": smell,
-        "Taste Descriptions": taste,
-        "Hearing Descriptions": hearing,
-        "Touch Descriptions": touch,
+        "Tracking Stats": st.session_state.tracking_stats.copy(),
+        "Time Stats": st.session_state.time_stats.copy(),
         "Writing Text": writing_text
     }
     st.session_state.writing_data.append(entry)
@@ -146,3 +180,11 @@ if st.session_state.writing_data:
     total_words = df["Words"].sum()
     writer_level = determine_level(total_words)
     st.write(f"### Writer Level: {writer_level}")
+
+# Display current POS tracking stats
+st.write("### Part-of-Speech Tracking Statistics")
+st.json(st.session_state.tracking_stats)
+
+# Display time tracking stats
+st.write("### Time Tracking Statistics")
+st.json(st.session_state.time_stats)
