@@ -10,11 +10,13 @@ try:
     import nltk
     from nltk.tokenize import word_tokenize
     from nltk import pos_tag
+    nltk.download('punkt')  # Ensure Punkt tokenizer models are downloaded
 except ModuleNotFoundError:
     os.system("pip install nltk")
     import nltk
     from nltk.tokenize import word_tokenize
     from nltk import pos_tag
+    nltk.download('punkt')
 
 # Initialize session state
 if 'writing_data' not in st.session_state:
