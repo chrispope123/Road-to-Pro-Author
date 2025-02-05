@@ -10,13 +10,13 @@ try:
     import nltk
     from nltk.tokenize import word_tokenize
     from nltk import pos_tag
-    nltk.download('punkt')  # Ensure Punkt tokenizer models are downloaded
+    nltk.download('averaged_perceptron_tagger')
 except ModuleNotFoundError:
     os.system("pip install nltk")
     import nltk
     from nltk.tokenize import word_tokenize
     from nltk import pos_tag
-    nltk.download('punkt')
+    nltk.download('averaged_perceptron_tagger')
 
 # Initialize session state
 if 'writing_data' not in st.session_state:
@@ -88,19 +88,6 @@ def update_pos_statistics(new_text, old_text):
             category = pos_categories[old[1][:2]]
             st.session_state.tracking_stats[f'{category}_changed'] += 1
 
-# Update time statistics
-def update_time_statistics(minutes_spent):
-    current_date = str(date)
-    st.session_state.time_stats['total_hours'] += minutes_spent / 60
-    st.session_state.time_stats['total_sessions'] += 1
-
-    if current_date not in st.session_state.time_stats['daily_hours']:
-        st.session_state.time_stats['daily_hours'][current_date] = 0
-        st.session_state.time_stats['daily_sessions'][current_date] = 0
-
-    st.session_state.time_stats['daily_hours'][current_date] += minutes_spent / 60
-    st.session_state.time_stats['daily_sessions'][current_date] += 1
-
 # Update statistics when the text changes
 if writing_text != st.session_state.writing_text:
     update_pos_statistics(writing_text, st.session_state.writing_text)
@@ -112,9 +99,6 @@ sentences_written = writing_text.count('.') + writing_text.count('!') + writing_
 pages_written = words_written / 250  # Assuming 250 words per page
 paragraphs_written = writing_text.count('\n')
 time_spent = st.sidebar.number_input("Time Spent Writing (Minutes)", min_value=0, value=0, step=5)
-
-if time_spent > 0:
-    update_time_statistics(time_spent)
 
 # Writing Calendar
 st.sidebar.header("Writing Calendar")
@@ -148,17 +132,6 @@ def check_alarms():
 alarm_thread = threading.Thread(target=check_alarms, daemon=True)
 alarm_thread.start()
 
-# Determine writer level based on words written
-def determine_level(total_words):
-    if total_words < 26000:
-        return f"Beginner Level {min(total_words // 1000 + 1, 25)}"
-    elif total_words < 51000:
-        return f"Intermediate Level {min((total_words - 25000) // 1000 + 26, 50)}"
-    elif total_words < 76000:
-        return f"Advanced Level {min((total_words - 50000) // 1000 + 51, 75)}"
-    else:
-        return f"Professional Level {min((total_words - 75000) // 1000 + 76, 100)}"
-
 if st.sidebar.button("Save Entry"):
     entry = {
         "Date": date,
@@ -167,7 +140,6 @@ if st.sidebar.button("Save Entry"):
         "Pages": pages_written,
         "Paragraphs": paragraphs_written,
         "Tracking Stats": st.session_state.tracking_stats.copy(),
-        "Time Stats": st.session_state.time_stats.copy(),
         "Writing Text": writing_text
     }
     st.session_state.writing_data.append(entry)
@@ -178,15 +150,7 @@ if st.session_state.writing_data:
     df = pd.DataFrame(st.session_state.writing_data)
     st.write("## Writing Progress Data")
     st.dataframe(df)
-    
-    total_words = df["Words"].sum()
-    writer_level = determine_level(total_words)
-    st.write(f"### Writer Level: {writer_level}")
 
 # Display current POS tracking stats
 st.write("### Part-of-Speech Tracking Statistics")
 st.json(st.session_state.tracking_stats)
-
-# Display time tracking stats
-st.write("### Time Tracking Statistics")
-st.json(st.session_state.time_stats)
