@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import datetime
 import time
-import schedule
 import threading
 
 # Try to import nltk and install if missing
