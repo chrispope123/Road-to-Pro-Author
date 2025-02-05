@@ -3,13 +3,13 @@ import pandas as pd
 import datetime
 import time
 import threading
+import os
 
-# Try to import nltk and install if missing
+# Ensure necessary dependencies are installed
 try:
     import nltk
     from nltk.corpus import wordnet
 except ModuleNotFoundError:
-    import os
     os.system("pip install nltk")
     import nltk
     from nltk.corpus import wordnet
@@ -21,6 +21,8 @@ if 'alarms' not in st.session_state:
     st.session_state.alarms = []
 if 'calendar_events' not in st.session_state:
     st.session_state.calendar_events = []
+if 'writing_text' not in st.session_state:
+    st.session_state.writing_text = ""
 
 # App title
 st.title("Writing Progress Tracker")
@@ -29,10 +31,24 @@ st.title("Writing Progress Tracker")
 st.sidebar.header("Log Your Writing")
 
 date = st.sidebar.date_input("Select Date", datetime.date.today())
-words_written = st.sidebar.number_input("Words Written", min_value=0, value=0, step=50)
-sentences_written = st.sidebar.number_input("Sentences Written", min_value=0, value=0, step=10)
-pages_written = st.sidebar.number_input("Pages Written", min_value=0.0, value=0.0, step=0.1)
-paragraphs_written = st.sidebar.number_input("Paragraphs Written", min_value=0, value=0, step=1)
+
+# Add a text area for writing
+writing_text = st.text_area(
+    "Write Here:", 
+    value=st.session_state.writing_text, 
+    height=300,
+    placeholder="Start writing here..."
+)
+
+# Update session state when writing text is changed
+if writing_text != st.session_state.writing_text:
+    st.session_state.writing_text = writing_text
+
+# Calculate writing statistics
+words_written = len(writing_text.split())
+sentences_written = writing_text.count('.') + writing_text.count('!') + writing_text.count('?')
+pages_written = words_written / 250  # Assuming 250 words per page
+paragraphs_written = writing_text.count('\n')
 time_spent = st.sidebar.number_input("Time Spent Writing (Minutes)", min_value=0, value=0, step=5)
 nouns = st.sidebar.number_input("Nouns Used", min_value=0, value=0, step=1)
 nouns_edited = st.sidebar.number_input("Nouns Improved", min_value=0, value=0, step=1)
@@ -59,7 +75,10 @@ if st.sidebar.button("Add Event"):
     st.sidebar.success("Event Added!")
 st.write("## Writing Calendar")
 calendar_df = pd.DataFrame(st.session_state.calendar_events)
-st.dataframe(calendar_df)
+if not calendar_df.empty:
+    st.dataframe(calendar_df)
+else:
+    st.write("No events added yet.")
 
 # Writing Alarms
 st.sidebar.header("Set Writing Alarm")
@@ -90,7 +109,7 @@ def determine_level(total_words):
     else:
         return f"Professional Level {min((total_words - 75000) // 1000 + 76, 100)}"
 
-if st.sidebar.button("Add Entry"):
+if st.sidebar.button("Save Entry"):
     entry = {
         "Date": date,
         "Words": words_written,
@@ -113,9 +132,10 @@ if st.sidebar.button("Add Entry"):
         "Taste Descriptions": taste,
         "Hearing Descriptions": hearing,
         "Touch Descriptions": touch,
+        "Writing Text": writing_text
     }
     st.session_state.writing_data.append(entry)
-    st.sidebar.success("Entry Added!")
+    st.sidebar.success("Entry Saved!")
 
 # Convert to DataFrame
 if st.session_state.writing_data:
